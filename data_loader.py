@@ -63,7 +63,6 @@ def get_data_transforms(augment=True):
         transform = transforms.Compose([
             transforms.Resize((config.IMAGE_SIZE, config.IMAGE_SIZE)),
             transforms.ToTensor(),
-            transforms.Normalize(mean=config.MEAN, std=config.STD)
         ])
     
     return transform

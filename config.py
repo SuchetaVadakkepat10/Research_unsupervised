@@ -12,7 +12,7 @@ CLASSES = ["no_tumor", "glioblastoma", "metastasis"]
 NUM_CLASSES = len(CLASSES)
 
 # Image preprocessing
-IMAGE_SIZE = 128  # Resize images to 128x128
+IMAGE_SIZE = 256  # Resize images to 256x256
 MEAN = [0.5]  # Normalization mean for grayscale
 STD = [0.5]   # Normalization std for grayscale
 
