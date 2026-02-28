@@ -1,20 +1,26 @@
 """
 Configuration file for Brain MRI Classification Models
 """
-import torch
+try:
+    import torch
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+except Exception:
+    torch = None
+    DEVICE = "cpu"
 import os
 
 # ========================
 # Data Configuration
 # ========================
-DATA_DIR = "data"  # Root directory containing class subdirectories
-CLASSES = ["no_tumor", "glioblastoma", "metastasis"]
+DATA_DIR = os.path.join("unsupervised", "all-data")  # Root directory containing images
+CLASSES = ["gbm", "met", "non"]
 NUM_CLASSES = len(CLASSES)
 
 # Image preprocessing
 IMAGE_SIZE = 256  # Resize images to 256x256
-MEAN = [0.5]  # Normalization mean for grayscale
-STD = [0.5]   # Normalization std for grayscale
+# Note: MEAN/STD retained for reference but data transforms no longer apply normalization
+MEAN = [0.5]  # Normalization mean for grayscale (not applied by default)
+STD = [0.5]   # Normalization std for grayscale (not applied by default)
 
 # Data split ratios
 TRAIN_RATIO = 0.7
@@ -76,10 +82,10 @@ CLASSIFIER_PATH = os.path.join(MODELS_DIR, "model2_classifier.pth")
 MODEL1_RESULTS = os.path.join(RESULTS_DIR, "model1_results.json")
 MODEL2_RESULTS = os.path.join(RESULTS_DIR, "model2_results.json")
 
-# ========================
-# Device Configuration
-# ========================
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# CSV log paths
+MODEL1_LOSS_LOG = os.path.join(RESULTS_DIR, "model1_losses.csv")
+VAE_LOSS_LOG = os.path.join(RESULTS_DIR, "vae_losses.csv")
+CLASSIFIER_LOSS_LOG = os.path.join(RESULTS_DIR, "classifier_losses.csv")
 
 # Create necessary directories
 os.makedirs(RESULTS_DIR, exist_ok=True)

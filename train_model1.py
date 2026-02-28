@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 import json
+import csv
 import config
 from model1_cnn import get_model1
 from data_loader import create_data_loaders
@@ -129,6 +130,11 @@ def train_model1(train_loader, val_loader, num_epochs=config.MODEL1_EPOCHS):
     
     best_val_acc = 0.0
     
+    # Initialize CSV log
+    with open(config.MODEL1_LOSS_LOG, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['epoch', 'train_loss', 'train_acc', 'val_loss', 'val_acc'])
+    
     # Training loop
     for epoch in range(num_epochs):
         print(f"\nEpoch {epoch+1}/{num_epochs}")
@@ -148,6 +154,11 @@ def train_model1(train_loader, val_loader, num_epochs=config.MODEL1_EPOCHS):
         history['train_acc'].append(train_acc)
         history['val_loss'].append(val_loss)
         history['val_acc'].append(val_acc)
+        
+        # Log to CSV
+        with open(config.MODEL1_LOSS_LOG, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([epoch + 1, train_loss, train_acc, val_loss, val_acc])
         
         # Print epoch summary
         print(f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%")

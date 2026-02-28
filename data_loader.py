@@ -57,12 +57,13 @@ def get_data_transforms(augment=True):
             transforms.RandomRotation(degrees=15),
             transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
             transforms.ToTensor(),
-            transforms.Normalize(mean=config.MEAN, std=config.STD)
+            # Note: normalization removed per user request (keep raw [0,1] tensors)
         ])
     else:
         transform = transforms.Compose([
             transforms.Resize((config.IMAGE_SIZE, config.IMAGE_SIZE)),
             transforms.ToTensor(),
+            # Note: normalization removed per user request (keep raw [0,1] tensors)
         ])
     
     return transform

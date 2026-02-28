@@ -3,6 +3,7 @@ Model 2: VAE Encoder + Supervised MLP Classifier
 First trains a VAE with reconstruction + KL divergence loss,
 then trains an MLP classifier on the frozen encoder embeddings
 """
+import math
 import torch
 import torch.nn as nn
 import config
@@ -17,60 +18,57 @@ class VAEEncoder(nn.Module):
         super(VAEEncoder, self).__init__()
         
         self.latent_dim = latent_dim
-        
-        # Encoder: 128x128 -> latent_dim
-        self.encoder = nn.Sequential(
-            # 128x128 -> 64x64
-            nn.Conv2d(1, 32, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            
-            # 64x64 -> 32x32
-            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            
-            # 32x32 -> 16x16
-            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            
-            # 16x16 -> 8x8
-            nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(inplace=True),
-        )
-        
-        # Calculate flattened size: 256 * 8 * 8 = 16384
-        self.flatten_size = 256 * 8 * 8
-        
+
+        # Build encoder/decoder dynamically based on config.IMAGE_SIZE
+        # We want to downsample to a spatial size of 8x8. The number of downsampling
+        # layers required is n_down where 2**n_down = IMAGE_SIZE / 8
+        if config.IMAGE_SIZE % 8 != 0:
+            raise ValueError("config.IMAGE_SIZE must be divisible by 8")
+
+        n_down = int(math.log2(config.IMAGE_SIZE // 8))
+
+        # Build encoder: progressively double channels up to 256
+        enc_layers = []
+        in_ch = 1
+        out_ch = 32
+        enc_channels = []
+        for _ in range(n_down):
+            enc_layers.append(nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=2, padding=1))
+            enc_layers.append(nn.BatchNorm2d(out_ch))
+            enc_layers.append(nn.ReLU(inplace=True))
+            enc_channels.append(out_ch)
+            in_ch = out_ch
+            out_ch = min(out_ch * 2, 256)
+
+        self.encoder = nn.Sequential(*enc_layers)
+
+        # After downsampling we should have spatial size 8x8
+        self.flatten_size = in_ch * 8 * 8
+
         # Latent space projection
         self.fc_mu = nn.Linear(self.flatten_size, latent_dim)
         self.fc_logvar = nn.Linear(self.flatten_size, latent_dim)
-        
-        # Decoder: latent_dim -> 128x128
+
+        # Decoder: latent_dim -> original image size
         self.fc_decode = nn.Linear(latent_dim, self.flatten_size)
-        
-        self.decoder = nn.Sequential(
-            # 8x8 -> 16x16
-            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            
-            # 16x16 -> 32x32
-            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            
-            # 32x32 -> 64x64
-            nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            
-            # 64x64 -> 128x128
-            nn.ConvTranspose2d(32, 1, kernel_size=4, stride=2, padding=1),
-            nn.Tanh()  # Output in range [-1, 1] to match normalized input
-        )
+
+        # Build decoder by reversing encoder channels
+        dec_layers = []
+        dec_in = in_ch
+        # decoder targets: reverse encoder channels, then final 1 channel
+        dec_targets = enc_channels[:-1][::-1] + [1] if len(enc_channels) > 1 else [1]
+        for tgt_ch in dec_targets:
+            # Use ConvTranspose2d to upsample by factor 2 each layer
+            if tgt_ch == 1:
+                dec_layers.append(nn.ConvTranspose2d(dec_in, 1, kernel_size=4, stride=2, padding=1))
+                dec_layers.append(nn.Sigmoid())  # Output in [0,1] to match ToTensor()
+            else:
+                dec_layers.append(nn.ConvTranspose2d(dec_in, tgt_ch, kernel_size=4, stride=2, padding=1))
+                dec_layers.append(nn.BatchNorm2d(tgt_ch))
+                dec_layers.append(nn.ReLU(inplace=True))
+            dec_in = tgt_ch
+
+        self.decoder = nn.Sequential(*dec_layers)
         
         self._initialize_weights()
     
@@ -81,7 +79,7 @@ class VAEEncoder(nn.Module):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
+            elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.BatchNorm1d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
@@ -132,7 +130,9 @@ class VAEEncoder(nn.Module):
             reconstruction: Reconstructed image
         """
         h = self.fc_decode(z)
-        h = h.view(h.size(0), 256, 8, 8)  # Reshape for decoder
+        h = h.view(h.size(0), -1, 8, 8)
+        # If flatten reshaped channel dimension doesn't match decoder start channel,
+        # allow the decoder to accept the current channel dimension (decoder built accordingly)
         reconstruction = self.decoder(h)
         return reconstruction
     

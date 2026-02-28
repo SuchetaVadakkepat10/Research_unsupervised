@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 import json
+import csv
 import config
 from model2_vae import get_model2_vae, get_model2_classifier, vae_loss
 from data_loader import create_data_loaders
@@ -232,6 +233,11 @@ def train_model2(train_loader, val_loader,
     
     best_vae_loss = float('inf')
     
+    # Initialize VAE CSV log
+    with open(config.VAE_LOSS_LOG, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['epoch', 'train_total', 'train_recon', 'train_kl', 'val_total', 'val_recon', 'val_kl'])
+    
     for epoch in range(vae_epochs):
         print(f"\nVAE Epoch {epoch+1}/{vae_epochs}")
         print("-" * 30)
@@ -256,6 +262,11 @@ def train_model2(train_loader, val_loader,
         vae_history['val_total_loss'].append(val_total)
         vae_history['val_recon_loss'].append(val_recon)
         vae_history['val_kl_loss'].append(val_kl)
+        
+        # Log VAE losses to CSV
+        with open(config.VAE_LOSS_LOG, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([epoch + 1, train_total, train_recon, train_kl, val_total, val_recon, val_kl])
         
         # Print summary
         print(f"Train - Total: {train_total:.4f}, Recon: {train_recon:.4f}, KL: {train_kl:.4f}")
@@ -317,6 +328,11 @@ def train_model2(train_loader, val_loader,
     
     best_classifier_acc = 0.0
     
+    # Initialize Classifier CSV log
+    with open(config.CLASSIFIER_LOSS_LOG, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['epoch', 'train_loss', 'train_acc', 'val_loss', 'val_acc'])
+    
     for epoch in range(classifier_epochs):
         print(f"\nClassifier Epoch {epoch+1}/{classifier_epochs}")
         print("-" * 30)
@@ -339,6 +355,11 @@ def train_model2(train_loader, val_loader,
         classifier_history['train_acc'].append(train_acc)
         classifier_history['val_loss'].append(val_loss)
         classifier_history['val_acc'].append(val_acc)
+        
+        # Log Classifier losses to CSV
+        with open(config.CLASSIFIER_LOSS_LOG, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([epoch + 1, train_loss, train_acc, val_loss, val_acc])
         
         # Print summary
         print(f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%")
